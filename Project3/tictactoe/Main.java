@@ -61,14 +61,14 @@ public class Main {
 
     private static Player currentPlayer;
 
-    private static final String START_GRID = "_________";
-
     private static Player[] players = new Player[2];
 
     private static final int ROW = 3;
 
     private static final int COLUMN = 3;
 
+    private static final String START_GRID = "_".repeat(ROW * COLUMN);
+    
     private static Playground playground;
 
     private static final Scanner scanner = new Scanner(System.in);
