@@ -18,21 +18,15 @@ public class CoffeeMachine {
 
     public static void main(String[] args) {
 
-        outputInformation();
-
-        System.out.println();
-
-        selectAction();
-
-        System.out.println();
-
-        outputInformation();
+        while (isSelectAction()) {
+            System.out.println();
+        }
 
         scanner.close();
 
     }
 
-    private static void outputInformation() {
+    private static void outputRemaining() {
         System.out.printf("""
                 The coffee machine has:
                 %d ml of water
@@ -43,71 +37,114 @@ public class CoffeeMachine {
                 """, countWater, countMilk, countCoffee, countCups, countMoney);
     }
 
-    private static void selectAction() {
-        System.out.println("Write action (buy, fill, take):");
+    private static boolean isSelectAction() {
+        System.out.println("Write action (buy, fill, take, remaining, exit):");
+
+        boolean isAvailableActions = true;
         switch (scanner.nextLine()) {
-            case "buy" -> buyCoffee();
-            case "fill" -> fillIngridients();
-            case "take" -> takeMoney();
+            case "buy" -> {
+                System.out.println();
+                buyCoffee();
+            }
+            case "fill" -> {
+                System.out.println();
+                fillIngridients();
+            }
+            case "take" -> {
+                System.out.println();
+                takeMoney();
+            }
+            case "remaining" -> {
+                System.out.println();
+                outputRemaining();
+            }
+            case "exit" -> isAvailableActions = false;
             default -> throw new UnsupportedOperationException("Action may be only buy, fill or take");
         }
+
+        return isAvailableActions;
     }
 
     private static void buyCoffee() {
         String coffee = chooseCoffee();
-        getMoneyFor(coffee);
-        makeCoffee(coffee);
-    }
-
-    private static void getMoneyFor(String coffee) {
-        switch (coffee) {
-            case ESPRESSO -> countMoney += 4;
-            case LATTE -> countMoney += 7;
-            case CAPPUCCINO -> countMoney += 6;
+        if (!coffee.equals("") && checkResourcesFor(coffee)) {
+            getMoneyFor(coffee);
+            makeCoffee(coffee);
         }
     }
 
-    private static void makeCoffee(String coffee) {
-        switch (coffee) {
-            case ESPRESSO -> makeEspresso();
-            case LATTE -> makeLatte();
-            case CAPPUCCINO -> makeCapuccino();
+    private static boolean checkResourcesFor(String typeCoffee) {
+        final String NOT_ENOUGH_RESOURCES = "Sorry, not enough ";
+        final String ENOUGH_RESOURCES = "I have enough resources, making you a coffee!";
+        if (countMilk - getNeedCount("milk", typeCoffee) < 0) {
+            System.out.println(NOT_ENOUGH_RESOURCES + "milk!");
+            return false;
         }
+        if (countWater - getNeedCount("water", typeCoffee) < 0) {
+            System.out.println(NOT_ENOUGH_RESOURCES + "water!");
+            return false;
+        }
+        if (countCoffee - getNeedCount("coffee", typeCoffee) < 0) {
+            System.out.println(NOT_ENOUGH_RESOURCES + "coffee!");
+        }
+        System.out.println(ENOUGH_RESOURCES);
+        return true;
     }
 
-    private static void makeEspresso() {
-        countWater -= 250;
-        countCoffee -= 16;
-        countCups--;
+    private static int getNeedCount(String component, String typeCoffee) {
+        return switch (component) {
+            case "milk" -> switch (typeCoffee) {
+                case ESPRESSO -> 0;
+                case LATTE -> 75;
+                case CAPPUCCINO -> 100;
+                default -> throw new UnsupportedOperationException("Milk does not exists");
+            };
+            case "water" -> switch (typeCoffee) {
+                case ESPRESSO -> 250;
+                case LATTE -> 350;
+                case CAPPUCCINO -> 200;
+                default -> throw new UnsupportedOperationException("Water does not exists");
+            };
+            case "coffee" -> switch (typeCoffee) {
+                case ESPRESSO -> 16;
+                case LATTE -> 20;
+                case CAPPUCCINO -> 12;
+                default -> throw new UnsupportedOperationException("Coffee does not exists");
+            };
+            case "money" -> switch (typeCoffee) {
+                case ESPRESSO -> 4;
+                case LATTE -> 7;
+                case CAPPUCCINO -> 6;
+                default -> throw new UnsupportedOperationException("Coffee does not exists");
+            };
+            default -> throw new UnsupportedOperationException("Component does not exists");
+        };
     }
 
-    private static void makeLatte() {
-        countWater -= 350;
-        countMilk -= 75;
-        countCoffee -= 20;
-        countCups--;
+    private static void getMoneyFor(String typeCoffee) {
+        countMoney += getNeedCount("money", typeCoffee);
     }
 
-    private static void makeCapuccino() {
-        countWater -= 200;
-        countMilk -= 100;
-        countCoffee -= 12;
+    private static void makeCoffee(String typeCoffee) {
+        countWater -= getNeedCount("water", typeCoffee);
+        countMilk -= getNeedCount("milk", typeCoffee);
+        countCoffee -= getNeedCount("coffee", typeCoffee);
         countCups--;
     }
 
     private static String chooseCoffee() {
-        System.out.println("What do you want to buy? 1 - espresso, 2 - latte, 3 - cappuccino:");
-        var bufScanner = new Scanner(scanner.nextLine());
-        String coffee = switch (bufScanner.nextInt()) {
-            case 1 -> ESPRESSO;
-            case 2 -> LATTE;
-            case 3 -> CAPPUCCINO;
+        System.out.println("What do you want to buy? 1 - espresso, 2 - latte, 3 - cappuccino, back - to main menu:");
+
+        String coffee = switch (scanner.nextLine()) {
+            case "1" -> ESPRESSO;
+            case "2" -> LATTE;
+            case "3" -> CAPPUCCINO;
+            case "back" -> "";
             default -> {
-                bufScanner.close();
-                throw new UnsupportedOperationException("You should select one of 3 coffees");
+                throw new UnsupportedOperationException("You should select one of 3 coffees or action back");
             }
         };
-        bufScanner.close();
+
         return coffee;
     }
 
@@ -120,6 +157,7 @@ public class CoffeeMachine {
         countCoffee += scanner.nextInt();
         System.out.println("Write how many disposable cups you want to add:");
         countCups += scanner.nextInt();
+        scanner.nextLine();
     }
 
     private static void takeMoney() {
