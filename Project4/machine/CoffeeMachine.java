@@ -1,32 +1,68 @@
 package machine;
 
+import java.util.Arrays;
 import java.util.Scanner;
+
+import machine.coffee.Capuccino;
+import machine.coffee.Coffee;
+import machine.coffee.Espresso;
+import machine.coffee.Latte;
+import machine.resources.CoffeeBeans;
+import machine.resources.Cup;
+import machine.resources.Milk;
+import machine.resources.Money;
+import machine.resources.Water;
 
 public class CoffeeMachine {
 
-    private static final String CAPPUCCINO = "cappuccino";
-    private static final String LATTE = "latte";
-    private static final String ESPRESSO = "espresso";
+    private CoffeeMachine() {
+    }
 
+    private static final CoffeeMachine coffeeMachine = new CoffeeMachine();
     private static final Scanner scanner = new Scanner(System.in);
 
-    private static int countWater = 400;
-    private static int countMoney = 550;
-    private static int countMilk = 540;
-    private static int countCoffee = 120;
-    private static int countCups = 9;
+    private enum Action {
+        BUY("buy"),
+        FILL("fill"),
+        TAKE("take"),
+        CLEAN("clean"),
+        REMAINING("remaining"),
+        EXIT("exit");
+
+        private final String actionString;
+
+        Action(String action) {
+            this.actionString = action;
+        }
+
+        @Override
+        public String toString() {
+            return actionString;
+        }
+    }
+
+    private final Water water = new Water(400);
+    private final Milk milk = new Milk(540);
+    private final CoffeeBeans coffeeBeans = new CoffeeBeans(120);
+    private final Cup cup = new Cup(9);
+    private final Money money = new Money(550);
+    private boolean isNeedClean = false;
+    private int countPreparedCups;
 
     public static void main(String[] args) {
 
-        while (isSelectAction()) {
-            System.out.println();
-        }
+        coffeeMachine.start();
 
         scanner.close();
-
     }
 
-    private static void outputRemaining() {
+    private void start() {
+        while (requestsAction()) {
+            System.out.println();
+        }
+    }
+
+    private void outputRemaining() {
         System.out.printf("""
                 The coffee machine has:
                 %d ml of water
@@ -34,134 +70,189 @@ public class CoffeeMachine {
                 %d g of coffee beans
                 %d disposable cups
                 $%d of money
-                """, countWater, countMilk, countCoffee, countCups, countMoney);
+                """,
+                water.getCount(),
+                milk.getCount(),
+                coffeeBeans.getCount(),
+                cup.getCount(),
+                money.getCount());
     }
 
-    private static boolean isSelectAction() {
-        System.out.println("Write action (buy, fill, take, remaining, exit):");
+    private boolean requestsAction() {
+        final String LIST_ACTIONS = getListActions();
+        System.out.printf("Write action (%s):%n", LIST_ACTIONS);
+
+        final String NO_ACTION = String.format("Action may be only %s", getListActions());
 
         boolean isAvailableActions = true;
-        switch (scanner.nextLine()) {
-            case "buy" -> {
-                System.out.println();
-                buyCoffee();
-            }
-            case "fill" -> {
-                System.out.println();
-                fillIngridients();
-            }
-            case "take" -> {
-                System.out.println();
-                takeMoney();
-            }
-            case "remaining" -> {
-                System.out.println();
-                outputRemaining();
-            }
-            case "exit" -> isAvailableActions = false;
-            default -> throw new UnsupportedOperationException("Action may be only buy, fill or take");
-        }
+        switch (getAction()) {
 
+            case Action.BUY -> buyCoffee();
+
+            case Action.FILL -> {
+                System.out.println();
+                coffeeMachine.fillIngridients();
+            }
+
+            case Action.TAKE -> {
+                System.out.println();
+                coffeeMachine.takeMoney();
+            }
+
+            case Action.REMAINING -> {
+                System.out.println();
+                coffeeMachine.outputRemaining();
+            }
+
+            case Action.CLEAN -> clean();
+
+            case Action.EXIT -> isAvailableActions = false;
+
+            case null -> throw new UnsupportedOperationException(NO_ACTION);
+
+        }
         return isAvailableActions;
     }
 
-    private static void buyCoffee() {
-        String coffee = chooseCoffee();
-        if (!coffee.equals("") && checkResourcesFor(coffee)) {
-            getMoneyFor(coffee);
-            makeCoffee(coffee);
-        }
+    private void clean() {
+        setCountPreparedCups(0);
+        isNeedClean = false;
+        System.out.println("I have been cleaned!");
     }
 
-    private static boolean checkResourcesFor(String typeCoffee) {
+    private static Action getAction() {
+        String actionString = scanner.nextLine().trim();
+        for (Action action : Action.values()) {
+            if (actionString.equals(action.toString())) {
+                return action;
+            }
+        }
+        return null;
+    }
+
+    private static String getListActions() {
+        String regex = "[\\[\\]]";
+        String arraysString = Arrays.toString(Action.values());
+        return arraysString.replaceAll(regex, "");
+    }
+
+    private static void buyCoffee() {
+        if (!coffeeMachine.isNeedClean) {
+            System.out.println();
+
+            Coffee coffee = chooseCoffee();
+
+            if (coffee != null && coffeeMachine.checkResourcesFor(coffee)) {
+                coffeeMachine.getMoneyFor(coffee);
+                coffeeMachine.makeCoffee(coffee);
+            }
+        } else {
+            System.out.println("I need cleaning!");
+        }
+
+    }
+
+    private boolean checkResourcesFor(Coffee typeCoffee) {
         final String NOT_ENOUGH_RESOURCES = "Sorry, not enough ";
         final String ENOUGH_RESOURCES = "I have enough resources, making you a coffee!";
-        if (countMilk - getNeedCount("milk", typeCoffee) < 0) {
+
+        int countWater = water.getCount() - typeCoffee.getCountWater();
+        int countMilk = milk.getCount() - typeCoffee.getCountMilk();
+        int countCoffee = coffeeBeans.getCount() - typeCoffee.getCountCoffeeBeans();
+        int countCups = cup.getCount() - 1;
+
+        if (countMilk < 0) {
             System.out.println(NOT_ENOUGH_RESOURCES + "milk!");
             return false;
         }
-        if (countWater - getNeedCount("water", typeCoffee) < 0) {
+
+        if (countWater < 0) {
             System.out.println(NOT_ENOUGH_RESOURCES + "water!");
             return false;
         }
-        if (countCoffee - getNeedCount("coffee", typeCoffee) < 0) {
+
+        if (countCoffee < 0) {
             System.out.println(NOT_ENOUGH_RESOURCES + "coffee!");
+            return false;
         }
+
+        if (countCups < 0) {
+            System.out.println(NOT_ENOUGH_RESOURCES + "cups!");
+            return false;
+        }
+
         System.out.println(ENOUGH_RESOURCES);
         return true;
     }
 
-    private static int getNeedCount(String component, String typeCoffee) {
-        return switch (component) {
-            case "milk" -> switch (typeCoffee) {
-                case ESPRESSO -> 0;
-                case LATTE -> 75;
-                case CAPPUCCINO -> 100;
-                default -> throw new UnsupportedOperationException("Milk does not exists");
-            };
-            case "water" -> switch (typeCoffee) {
-                case ESPRESSO -> 250;
-                case LATTE -> 350;
-                case CAPPUCCINO -> 200;
-                default -> throw new UnsupportedOperationException("Water does not exists");
-            };
-            case "coffee" -> switch (typeCoffee) {
-                case ESPRESSO -> 16;
-                case LATTE -> 20;
-                case CAPPUCCINO -> 12;
-                default -> throw new UnsupportedOperationException("Coffee does not exists");
-            };
-            case "money" -> switch (typeCoffee) {
-                case ESPRESSO -> 4;
-                case LATTE -> 7;
-                case CAPPUCCINO -> 6;
-                default -> throw new UnsupportedOperationException("Coffee does not exists");
-            };
-            default -> throw new UnsupportedOperationException("Component does not exists");
-        };
+    private void getMoneyFor(Coffee typeCoffee) {
+        money.add(typeCoffee.getPrice());
     }
 
-    private static void getMoneyFor(String typeCoffee) {
-        countMoney += getNeedCount("money", typeCoffee);
+    private void makeCoffee(Coffee coffee) {
+        water.reduce(coffee.getCountWater());
+        milk.reduce(coffee.getCountMilk());
+        coffeeBeans.reduce(coffee.getCountCoffeeBeans());
+        cup.reduce(1);
+
+        setCountPreparedCups(getCountPreparedCups() + 1);
+
+        if (getCountPreparedCups() == 10) {
+            isNeedClean = true;
+        }
     }
 
-    private static void makeCoffee(String typeCoffee) {
-        countWater -= getNeedCount("water", typeCoffee);
-        countMilk -= getNeedCount("milk", typeCoffee);
-        countCoffee -= getNeedCount("coffee", typeCoffee);
-        countCups--;
-    }
-
-    private static String chooseCoffee() {
+    private static Coffee chooseCoffee() {
         System.out.println("What do you want to buy? 1 - espresso, 2 - latte, 3 - cappuccino, back - to main menu:");
 
-        String coffee = switch (scanner.nextLine()) {
-            case "1" -> ESPRESSO;
-            case "2" -> LATTE;
-            case "3" -> CAPPUCCINO;
-            case "back" -> "";
-            default -> {
-                throw new UnsupportedOperationException("You should select one of 3 coffees or action back");
-            }
+        return switch (scanner.nextLine().trim()) {
+            case "1" -> new Espresso();
+            case "2" -> new Latte();
+            case "3" -> new Capuccino();
+            case "back" -> null;
+            default -> throw new UnsupportedOperationException("You should select one of 3 coffees or action back");
         };
-
-        return coffee;
     }
 
-    private static void fillIngridients() {
+    private void fillIngridients() {
         System.out.println("Write how many ml of water you want to add:");
-        countWater += scanner.nextInt();
+        water.add(scanner.nextInt());
+
         System.out.println("Write how many ml of milk you want to add:");
-        countMilk += scanner.nextInt();
+        milk.add(scanner.nextInt());
+
         System.out.println("Write how many grams of coffee beans you want to add:");
-        countCoffee += scanner.nextInt();
+        coffeeBeans.add(scanner.nextInt());
+
         System.out.println("Write how many disposable cups you want to add:");
-        countCups += scanner.nextInt();
+        cup.add(scanner.nextInt());
+
         scanner.nextLine();
     }
 
-    private static void takeMoney() {
-        System.out.println("I gave you $" + countMoney);
-        countMoney = 0;
+    private void takeMoney() {
+        int currentMoney = money.getCount();
+        System.out.println("I gave you $" + currentMoney);
+        money.reduce(currentMoney);
+    }
+
+    /**
+     * @return the countPreparedCups
+     */
+    public int getCountPreparedCups() {
+        return countPreparedCups;
+    }
+
+    /**
+     * @param countPreparedCups the countPreparedCups to set
+     */
+    public void setCountPreparedCups(int countPreparedCups) {
+        if (countPreparedCups >= 0) {
+            this.countPreparedCups = countPreparedCups;
+        }
+    }
+
+    public boolean isNeedClean() {
+        return isNeedClean;
     }
 }
